@@ -91,17 +91,24 @@ class RequestIdMiddleware
         }
 
         // The fields are resolved lazily at log time so records emitted after
-        // the user authenticates still pick up the user. The processor handles
-        // both Monolog 3 (immutable LogRecord) and Monolog 2 (plain array) so
-        // the package works across Laravel 8–11.
-        $processor = function ($record) use ($request) {
+        // the user authenticates still pick up the user. They are merged into
+        // either the record's context (flat, reads best with the LineFormatter)
+        // or Monolog's "extra" bucket (a separate namespace, best for JSON logs)
+        // depending on "log_destination". The processor handles both Monolog 3
+        // (immutable LogRecord) and Monolog 2 (plain array) so the package works
+        // across Laravel 8–11.
+        $bucket = config('request-id.log_destination', 'context') === 'extra'
+            ? 'extra'
+            : 'context';
+
+        $processor = function ($record) use ($request, $bucket) {
             $fields = $this->logFields($request);
 
             if ($record instanceof LogRecord) {
-                return $record->with(extra: array_merge($record->extra, $fields));
+                return $record->with(...[$bucket => array_merge($record->{$bucket}, $fields)]);
             }
 
-            $record['extra'] = array_merge($record['extra'] ?? [], $fields);
+            $record[$bucket] = array_merge($record[$bucket] ?? [], $fields);
 
             return $record;
         };

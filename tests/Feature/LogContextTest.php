@@ -46,9 +46,36 @@ class LogContextTest extends TestCase
         return $record instanceof \Monolog\LogRecord ? $record->extra : $record['extra'];
     }
 
-    public function test_it_adds_request_id_to_log_records(): void
+    /** Read the "context" bag from a captured record across Monolog 2/3. */
+    protected function context($record): array
+    {
+        return $record instanceof \Monolog\LogRecord ? $record->context : $record['context'];
+    }
+
+    public function test_it_adds_request_id_to_log_record_context_by_default(): void
     {
         $id = '11111111-1111-4111-8111-111111111111';
+
+        $this->get('/_log', ['X-Request-Id' => $id])->assertOk();
+
+        $records = $this->handler()->getRecords();
+        $this->assertNotEmpty($records, 'expected a log record to be captured');
+
+        // Default destination is "context", so the IDs read as part of the main
+        // log entry rather than Monolog's "extra" bucket.
+        $context = $this->context($records[0]);
+        $this->assertSame($id, $context['request_id']);
+        $this->assertNull($context['session_id']);
+        $this->assertNull($context['correlation_id']);
+
+        $this->assertArrayNotHasKey('request_id', $this->extra($records[0]));
+    }
+
+    public function test_it_can_add_request_id_to_the_extra_bucket(): void
+    {
+        config()->set('request-id.log_destination', 'extra');
+
+        $id = '22222222-2222-4222-8222-222222222222';
 
         $this->get('/_log', ['X-Request-Id' => $id])->assertOk();
 
@@ -59,6 +86,8 @@ class LogContextTest extends TestCase
         $this->assertSame($id, $extra['request_id']);
         $this->assertNull($extra['session_id']);
         $this->assertNull($extra['correlation_id']);
+
+        $this->assertArrayNotHasKey('request_id', $this->context($records[0]));
     }
 
     public function test_it_does_not_log_when_logging_is_disabled(): void
@@ -68,7 +97,8 @@ class LogContextTest extends TestCase
         $this->get('/_log', ['X-Request-Id' => '11111111-1111-4111-8111-111111111111'])
             ->assertOk();
 
-        $extra = $this->extra($this->handler()->getRecords()[0]);
-        $this->assertArrayNotHasKey('request_id', $extra);
+        $record = $this->handler()->getRecords()[0];
+        $this->assertArrayNotHasKey('request_id', $this->context($record));
+        $this->assertArrayNotHasKey('request_id', $this->extra($record));
     }
 }

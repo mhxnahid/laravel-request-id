@@ -83,6 +83,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Log destination
+    |--------------------------------------------------------------------------
+    |
+    | Where the IDs (and user) are placed on each log record:
+    |
+    |   'context' — merged flat into the record's context. Reads best with the
+    |               LineFormatter (single "{...}" block) and collapses onto any
+    |               matching keys already in context (e.g. user_id).
+    |   'extra'   — kept in Monolog's "extra" bucket. Best for JSON/structured
+    |               logs, where it becomes a separate "extra" object that keeps
+    |               the tracing metadata out of the request payload.
+    |
+    */
+    'log_destination' => 'context',
+
+    /*
+    |--------------------------------------------------------------------------
     | Log channels
     |--------------------------------------------------------------------------
     |
