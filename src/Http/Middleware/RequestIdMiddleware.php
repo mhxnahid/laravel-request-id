@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Monolog\LogRecord;
 
 /**
  * Resolve request, session and correlation IDs for the request, echo them back
@@ -85,20 +86,22 @@ class RequestIdMiddleware
      */
     protected function addLogContext(Request $request): void
     {
-        $processor = function (array $record) use ($request): array {
-            foreach (self::IDS as $id) {
-                $record[$id] = $request->attributes->get($this->attributeKey($id));
+        if (! config('request-id.log', true)) {
+            return;
+        }
+
+        // The fields are resolved lazily at log time so records emitted after
+        // the user authenticates still pick up the user. The processor handles
+        // both Monolog 3 (immutable LogRecord) and Monolog 2 (plain array) so
+        // the package works across Laravel 8–11.
+        $processor = function ($record) use ($request) {
+            $fields = $this->logFields($request);
+
+            if ($record instanceof LogRecord) {
+                return $record->with(extra: array_merge($record->extra, $fields));
             }
 
-            $user = $request->user();
-
-            if (config('request-id.log_user', true) && $user !== null) {
-                foreach (config('request-id.user_fields', []) as $key => $field) {
-                    $record[$key] = is_callable($field)
-                        ? $field($user)
-                        : data_get($user, $field);
-                }
-            }
+            $record['extra'] = array_merge($record['extra'] ?? [], $fields);
 
             return $record;
         };
@@ -113,6 +116,31 @@ class RequestIdMiddleware
                 // Skip channels that aren't configured rather than failing the request.
             }
         }
+    }
+
+    /**
+     * Build the fields added to each log record: the resolved IDs plus the
+     * authenticated user (when enabled).
+     */
+    protected function logFields(Request $request): array
+    {
+        $fields = [];
+
+        foreach (self::IDS as $id) {
+            $fields[$id] = $request->attributes->get($this->attributeKey($id));
+        }
+
+        $user = $request->user();
+
+        if (config('request-id.log_user', true) && $user !== null) {
+            foreach (config('request-id.user_fields', []) as $key => $field) {
+                $fields[$key] = is_callable($field)
+                    ? $field($user)
+                    : data_get($user, $field);
+            }
+        }
+
+        return $fields;
     }
 
     protected function header(string $id): string

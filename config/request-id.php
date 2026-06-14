@@ -71,12 +71,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Logging
+    |--------------------------------------------------------------------------
+    |
+    | Master switch for attaching the IDs (and user) to log records. When false
+    | the IDs are still resolved and echoed on the response, but nothing is
+    | pushed to the log.
+    |
+    */
+    'log' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Log channels
     |--------------------------------------------------------------------------
     |
-    | The IDs are always pushed to the default log driver. List any additional
-    | channels here to attach the same processor to them. Unknown channels are
-    | skipped silently so a missing channel never breaks the request.
+    | When logging is enabled the IDs are always pushed to the default log
+    | driver. List any additional channels here to attach the same processor to
+    | them. Unknown channels are skipped silently so a missing channel never
+    | breaks the request.
     |
     */
     'log_channels' => [],
